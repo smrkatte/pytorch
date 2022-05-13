@@ -9,6 +9,7 @@ from torchgen.model import (
     Type,
     SchemaKind,
     NativeFunctionsViewGroup,
+    NativeFunctionsGroup,
 )
 from torchgen.utils import IDENT_REGEX
 
@@ -194,6 +195,34 @@ class DifferentiabilityInfo:
             output_differentiability_conditions=self.output_differentiability_conditions,
         )
 
+    def create_functional_derivative(
+        self, g: NativeFunctionsGroup
+    ) -> "DifferentiabilityInfo":
+        assert "generated" in g.functional.tags
+
+        f = g.functional
+
+        name = str(g.functional.func.name.name)
+        op_name = None if self.op is None else f"{self.op}_functional"
+
+        return DifferentiabilityInfo(
+            # Use the "_functional" version of name/func/op
+            name=name,
+            func=f,
+            op=op_name,
+            # But keep all derivative info the same
+            derivatives=self.derivatives,
+            forward_derivatives=self.forward_derivatives,
+            all_saved_inputs=self.all_saved_inputs,
+            all_saved_outputs=self.all_saved_outputs,
+            available_named_gradients=self.available_named_gradients,
+            used_named_gradients=self.used_named_gradients,
+            args_with_derivatives=self.args_with_derivatives,
+            non_differentiable_arg_names=self.non_differentiable_arg_names,
+            output_differentiability=self.output_differentiability,
+            output_differentiability_conditions=self.output_differentiability_conditions,
+        )
+
 
 def uses_ident(info: Optional[DifferentiabilityInfo], ident: str) -> bool:
     if info is None:
@@ -310,17 +339,31 @@ def match_differentiability_info(
         for info in differentiability_infos
         if info.func.func.kind() == SchemaKind.functional
     }
+    non_functional_info_by_signature = {
+        info.func.func.signature(strip_default=True): info
+        for info in differentiability_infos
+        if info.func.func.kind() != SchemaKind.functional
+    }
 
     def find_info(f: NativeFunction) -> Tuple[Optional[DifferentiabilityInfo], bool]:
+        # (1) Check for an exact match
         if f.func in info_by_schema:
             return info_by_schema[f.func], True
 
-        # if there is no exact match look for the out-of-place signature.
+        # (2) If no exact match, check if the out-of-place variant
+        # of this operator has a match.
         # i.e mul() for mul_() or mul_out()
-        return (
-            functional_info_by_signature.get(f.func.signature(strip_default=True)),
-            False,
-        )
+        f_sig = f.func.signature(strip_default=True)
+        if f_sig in functional_info_by_signature:
+            return functional_info_by_signature[f_sig], False
+
+        # (3) Some operators have a derivative explicitly defined for the mutable
+        # variant, but get a code-generated out-of-place variant.
+        # Use that if available
+        if "generated" in f.tags and f_sig in non_functional_info_by_signature:
+            return non_functional_info_by_signature[f_sig], False
+
+        return None, False
 
     result: List[NativeFunctionWithDifferentiabilityInfo] = []
     for f in native_functions:
