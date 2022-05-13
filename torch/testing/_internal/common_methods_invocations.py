@@ -12970,6 +12970,7 @@ op_db: List[OpInfo] = [
         dtypes=floating_types_and(torch.bfloat16),
         dtypesIfCUDA=floating_types_and(torch.float16),
         sample_inputs_func=sample_inputs_multilabel_soft_margin_loss,
+        supports_forward_ad=True,
         decorators=(
             DecorateInfo(
                 toleranceOverride({torch.float32: tol(atol=1e-4, rtol=1e-4)}),
@@ -13236,7 +13237,8 @@ op_db: List[OpInfo] = [
                DecorateInfo(unittest.skip("Skipped!"), 'TestCommon', 'test_dtypes', device_type='cuda'),
                DecorateInfo(unittest.skip("Skipped!"), 'TestNNCOpInfo', 'test_nnc_correctness', dtypes=(torch.bfloat16,)),
            ),
-           supports_forward_ad=False,
+           supports_forward_ad=True,
+           supports_fwgrad_bwgrad=True,
            supports_out=False),
     OpInfo('nn.functional.glu',
            aten_name='glu',
@@ -13285,7 +13287,7 @@ op_db: List[OpInfo] = [
             (weight if x.ndim == 1 else weight.reshape([weight.size if i == 1 else 1 for i in range(0, x.ndim)])),
         dtypes=floating_types_and(torch.bfloat16),
         dtypesIfCUDA=floating_types_and(torch.float16),
-        supports_forward_ad=False,
+        supports_forward_ad=True,
         supports_autograd=True,
         assert_autodiffed=False,
         supports_gradgrad=True,
@@ -13336,7 +13338,7 @@ op_db: List[OpInfo] = [
         dtypes=floating_types_and(torch.bfloat16),
         dtypesIfCUDA=floating_types_and(torch.float16, torch.bfloat16),
         gradcheck_wrapper=wrapper_set_seed,
-        supports_forward_ad=False,
+        supports_forward_ad=True,
         supports_autograd=True,
         assert_autodiffed=False,
         supports_gradgrad=True,
@@ -13356,6 +13358,10 @@ op_db: List[OpInfo] = [
         skips=(
             # lambda impl
             DecorateInfo(unittest.expectedFailure, 'TestNormalizeOperators', 'test_normalize_operator_exhaustive'),
+            # In-place operations do not play well with forward AD
+            # https://github.com/pytorch/pytorch/issues/77447
+            DecorateInfo(unittest.expectedFailure, 'TestGradients',
+                         'test_inplace_forward_mode_AD'),
             DecorateInfo(unittest.expectedFailure, 'TestJit', 'test_variant_consistency_jit'),)),
     UnaryUfuncInfo(
         'nn.functional.selu',
@@ -13485,6 +13491,7 @@ op_db: List[OpInfo] = [
         dtypesIfCUDA=floating_types_and(torch.float16),
         supports_autograd=True,
         assert_autodiffed=False,
+        supports_forward_ad=True,
         supports_gradgrad=True,
         # autodiff_nonfusible_nodes=["aten::log_sigmoid"],
         decorators=[
@@ -15445,6 +15452,9 @@ op_db: List[OpInfo] = [
     OpInfo('put',
            dtypes=all_types_and_complex_and(torch.bool, torch.float16, torch.bfloat16),
            supports_out=False,
+           supports_forward_ad=True,
+           supports_fwgrad_bwgrad=True,
+           check_batched_forward_grad=False,
            check_batched_gradgrad=False,  # vmap complains of the sizes
            skips=(
                # Problem, needs to be fixed
@@ -15456,7 +15466,7 @@ op_db: List[OpInfo] = [
            dtypes=all_types_and_complex_and(torch.bool, torch.float16, torch.bfloat16),
            check_batched_grad=False,  # vmap complains of the sizes
            supports_forward_ad=True,
-           supports_fwgrad_bwgrad=False,  # Need: put_
+           supports_fwgrad_bwgrad=True,
            sample_inputs_func=sample_inputs_take,
            skips=(
                DecorateInfo(unittest.expectedFailure, 'TestCompositeCompliance', 'test_backward'),
@@ -16956,6 +16966,7 @@ op_db: List[OpInfo] = [
         dtypes=floating_types_and(torch.bfloat16, torch.float16),
         sample_inputs_func=sample_inputs_embedding,
         error_inputs_func=error_inputs_embedding,
+        supports_forward_ad=True,
         skips=(
             # lambda impl
             DecorateInfo(unittest.expectedFailure, 'TestJit', 'test_variant_consistency_jit'),
