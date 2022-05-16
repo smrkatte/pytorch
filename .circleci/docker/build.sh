@@ -54,6 +54,8 @@ elif [[ "$image" == *-bionic* ]]; then
   UBUNTU_VERSION=18.04
 elif [[ "$image" == *-focal* ]]; then
   UBUNTU_VERSION=20.04
+elif [[ "$image" == *-jammy* ]]; then
+  UBUNTU_VERSION=22.04
 elif [[ "$image" == *ubuntu* ]]; then
   extract_version_from_image_name ubuntu UBUNTU_VERSION
 elif [[ "$image" == *centos* ]]; then
@@ -249,6 +251,15 @@ case "$image" in
     DB=yes
     VISION=yes
     ROCM_VERSION=5.1.1
+    ;;
+  pytorch-linux-jammy-cuda11.6-cudnn-8-py3.8-clang12)
+    ANACONDA_PYTHON_VERSION=3.8
+    CUDA_VERSION=11.6.0
+    CUDNN_VERSION=8
+    CLANG_VERSION=12
+    PROTOBUF=yes
+    DB=yes
+    VISION=yes
     ;;
   *)
     # Catch-all for builds that are not hardcoded.
